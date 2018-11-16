@@ -28,22 +28,26 @@ public class RNFileViewerModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void open(String path, ReadableMap options, Promise promise) {
-    File newFile = new File(path);
+
     Uri contentUri = null;
     Boolean showOpenWithDialog = options.hasKey(SHOW_OPEN_WITH_DIALOG) ? options.getBoolean(SHOW_OPEN_WITH_DIALOG) : false;
     Boolean showStoreSuggestions = options.hasKey(SHOW_STORE_SUGGESTIONS) ? options.getBoolean(SHOW_STORE_SUGGESTIONS) : false;
 
-    try {
-      final String packageName = getCurrentActivity().getPackageName();
-      final String authority = new StringBuilder(packageName).append(".provider").toString();
-      contentUri = FileProvider.getUriForFile(getCurrentActivity(), authority, newFile);
-    }
-    catch(IllegalArgumentException e) {
-      promise.reject(E_OPENING_ERROR, e);
-      return;
+    if (path.startsWith("content://")) {
+      contentUri = Uri.parse(path);
+    } else {
+      File newFile = new File(path);
+      try {
+        final String packageName = getCurrentActivity().getPackageName();
+        final String authority = new StringBuilder(packageName).append(".provider").toString();
+        contentUri = FileProvider.getUriForFile(getCurrentActivity(), authority, newFile);
+      } catch (IllegalArgumentException e) {
+        promise.reject(E_OPENING_ERROR, e);
+        return;
+      }
     }
 
-    if(contentUri == null) {
+    if (contentUri == null) {
       promise.reject(E_OPENING_ERROR, "Invalid file");
       return;
     }
@@ -66,28 +70,26 @@ public class RNFileViewerModule extends ReactContextBaseJavaModule {
       intentActivity = shareIntent;
     }
 
-    PackageManager pm =  getCurrentActivity().getPackageManager();
+    PackageManager pm = getCurrentActivity().getPackageManager();
 
-      if (shareIntent.resolveActivity(pm) != null) {
-          try {
-              getCurrentActivity().startActivity(intentActivity);
-              promise.resolve(null);
-          }
-          catch(Exception e) {
-              promise.reject(E_OPENING_ERROR, e);
-          }
-      } else {
-          try {
-              if (showStoreSuggestions) {
-                  Intent storeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=" + mimeType + "&c=apps"));
-                  getCurrentActivity().startActivity(storeIntent);
-              }
-              throw new Exception("No app associated with this mime type");
-          }
-          catch(Exception e) {
-              promise.reject(E_OPENING_ERROR, e);
-          }
+    if (shareIntent.resolveActivity(pm) != null) {
+      try {
+        getCurrentActivity().startActivity(intentActivity);
+        promise.resolve(null);
+      } catch (Exception e) {
+        promise.reject(E_OPENING_ERROR, e);
       }
+    } else {
+      try {
+        if (showStoreSuggestions) {
+          Intent storeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=" + mimeType + "&c=apps"));
+          getCurrentActivity().startActivity(storeIntent);
+        }
+        throw new Exception("No app associated with this mime type");
+      } catch (Exception e) {
+        promise.reject(E_OPENING_ERROR, e);
+      }
+    }
   }
 
   @Override
